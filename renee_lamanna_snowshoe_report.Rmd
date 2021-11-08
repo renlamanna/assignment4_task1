@@ -1,0 +1,203 @@
+---
+title: "Snowshoe Report"
+author: "Renee LaManna"
+date: "11/3/2021"
+output: html_document
+---
+
+a) Introduction: A 4 - 5 sentence "mini-introduction" to what this study is exploring, including basic background information about the subject, site and study (with citations as needed), and a brief overview of what is included in the exploratory report. You should probably do this last so you know what’s contained in the report.
+
+b) Data and analyses: A 3 - 4 sentence section in which you briefly describe the data, including citation & credit as needed, and provide an overview of the main analysis, statistical methods and tools used.
+
+Data citation: Kielland, K., F.S. Chapin, R.W. Ruess, and Bonanza Creek LTER. 2017. Snowshoe hare physical data in Bonanza Creek Experimental Forest: 1999-Present ver 22. Environmental Data Initiative. https://doi.org/10.6073/pasta/03dce4856d79b91557d8e6ce2cbcdc14
+
+## Setup
+include necessary packages and set code chunk options
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(janitor)
+library(here)
+library(lubridate)
+library(kableExtra)
+library(effsize)
+```
+
+## Read in the data
+- Read in bonanza_hares.csv as `hares`
+- Clean to ensure everything is in lowersnakecase
+
+```{r}
+hares <- read_csv(here("data", "bonanza_hares.csv")) %>% 
+  clean_names()
+```
+
+# Part i
+
+## Data Wrangling
+Count the total number of juvenile hare trappings during each year of the study and complete summary statistics
+
+```{r}
+# Create new df, `total_traps` including total number of hare trapping each year from `hares`
+total_traps <- hares %>% 
+  filter(age == "j") %>% 
+  mutate(date = mdy(date)) %>% 
+  mutate(year = year(date)) %>% 
+  group_by(year) %>% 
+  summarise(hare_count = n())
+
+# Create new df for summary statistics, `total_traps_summary` from `total_traps` created above
+total_traps_summary <- total_traps %>% 
+  summarise(mean_count = mean(hare_count, na.rm = TRUE),
+            median_count = median(hare_count, na.rm = TRUE), 
+            sd_count = sd(hare_count, na.rm = TRUE),
+            max_count = max(hare_count, na.rm = TRUE),
+            min_count = min(hare_count, na.rm = TRUE))
+         
+
+
+
+```
+
+
+## Data visualization
+Create column graph to visualize annual juvenile hare trappings using `total_traps
+
+```{r}
+ggplot(data = total_traps, aes(x = year, y = hare_count)) +
+  geom_col(color = "lightsalmon3", fill = "lightsalmon3") +
+  theme_grey() +
+  scale_x_continuous(breaks = 1999:2012) +
+  labs( x = "Year", 
+        y = "Number of juvenile hare traps",
+        caption = expression(paste(bold("Figure 1."), "Total number of juveline hare trappings in each year from 1999-2012 at the Bonanza Creek LTER"))) +
+   theme(axis.title.x = element_text(hjust = 0.5, vjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        axis.text.x = element_text(size = 6),
+        plot.caption = element_text(hjust = .4))
+
+
+```
+
+The minimum count of juvenile hare trappings is `r total_traps_summary$min_count `traps, while the maximum is `r total_traps_summary$max_count` traps. The mean annual number of juvenile hare traps is `r total_traps_summary$mean_count ` traps and the median is `r total_traps_summary$median_count ` traps. There doesn't appears to be any significant trends, but it it can be concluded that the highest number of annual hare trappings occured before 2001, with the exception of years 2005 and 2008. Absolute counts vs counts that are impacted by effort could provide us with very different date. If we include effort (number of days and number of traps in the study each year) it is possible that effort has been the same or similar between 1999 and 2012, but there is just less juvenile hares around to trap. There is a different number of observations for each year, this could be a useful way to quantify effort moving forward. 
+
+# Visualize juvenile hare weights. Create a finalized data visualization (or visualizations) in which you compare **juvenile hare weights by sex and site (grid)** (ignore other variables). You should include groups where these variables are not recorded (`NA`). Include finalized figure captions below your visualization(s)
+
+# Part ii
+
+## Data Wrangling
+
+```{r}
+hare_weights <- hares %>% 
+  filter(age == "j") %>%
+  mutate(full_sex = case_when(
+    sex == "f" ~ "female",
+    sex == "m" ~ "male",
+    TRUE ~ "NA")) %>% 
+  group_by(weight) %>%  
+  summarize(full_sex, grid)
+
+```
+```{r}
+ggplot(data = hare_weights, aes(x=weight)) +
+  geom_histogram(aes(color = full_sex, fill = full_sex), bins = 10) +
+  scale_fill_manual(values = c("lightpink2", "steelblue4", "thistle4")) +
+  scale_color_manual(values = c("white", "white", "white")) +
+  facet_wrap(~grid) +
+  
+  theme_minimal() +
+  theme(axis.title.x = element_text(hjust = 0.5, vjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5),
+        plot.caption = element_text(hjust = 0.05),
+        legend.position = "none") +
+  labs( x = "Weight (g)", 
+        y = "Number of juvenile hares",
+        title = "Juvenile Hare Weight Distribution by Site & Sex, (LAMANNA)",
+        subtitle = "Bonanza Creek, LTER",
+        caption = "Figure 2. Size distribution of juvenile hare weight in grams for given sex and site at the Bonanza Creek LTER")
+```
+
+Juvenile weight comparison (male & female snowshoe hares). Further compare mean weights for **juvenile male and female snowshoe hares** included in this study. In this section, you should include:
+A finalized table containing the mean, standard deviation, and sample size for male and female juvenile snowshoe hares, with a table caption (remember, a table caption should be placed *above* the table in your report)
+A 2 - 3 sentence comprehensive statement of the means comparison, including at least:
+The actual difference in means
+Effect size (Cohen's *d*) (see effsize::cohen.d() example in the Lab 5 key)
+Outcome of an unpaired two-sample t-test
+
+```{r}
+sex_weights <- hares %>% 
+  filter(age == "j") %>%
+  mutate(full_sex = case_when(
+    sex == "f" ~ "female",
+    sex == "m" ~ "male")) %>%
+  group_by(full_sex) %>% 
+  summarise(weight)
+
+sex_weights_summary <- sex_weights %>% 
+  summarise(mean_weight = mean(weight, na.rm = TRUE),
+            median_weight = median(weight, na.rm = TRUE), 
+            sd_weight = sd(weight, na.rm = TRUE),
+            sample_size_weight = n())
+            
+  
+
+
+```
+```{r}
+# Make exploratory histogram
+ggplot(data = sex_weights, aes(x = weight)) +
+  geom_histogram(bins = 10) +
+  facet_wrap(~full_sex)
+
+# Make exploratory QQ-plot
+ggplot(data = sex_weights, aes(sample = weight)) +
+  stat_qq() +
+  geom_qq_line() + # plot line to compare linear relationship
+  facet_wrap(~ full_sex)
+```
+
+```{r}
+kable(sex_weights_summary,
+   col.names = c("Sex", "Mean weight (g)", "Median weight (g)", "SD of weight (g)", "Sample size"),
+      caption = "Table 1: Mean, median, sd, and sample size values of juvenile hare weight in grams (g) of both females and males at Bonanza Creek LTER", 
+      digit = 2) %>% 
+      kable_styling(full_width = FALSE,
+                bootstrap_options = "bordered",
+                position = "left")
+  
+
+```
+
+
+## Means comparison 
+
+
+```{r}
+f_weight <- sex_weights %>% 
+  filter(full_sex == "female") %>%
+  drop_na(weight) %>% 
+  pull(weight)
+
+
+m_weight <- sex_weights %>% 
+  filter(full_sex == "male") %>% 
+  drop_na(weight) %>% 
+  pull(weight)
+```
+
+```{r}
+weight_t <- t.test(f_weight, m_weight)
+
+weight_t
+```
+
+
+```{r}
+weight_cohen <- cohen.d(f_weight, m_weight)
+
+weight_cohen
+```
+
